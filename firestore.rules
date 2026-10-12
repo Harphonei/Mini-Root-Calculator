@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/calculations/{calculationId} {
+      function isOwner() {
+        return request.auth != null
+          && request.auth.uid == userId;
+      }
+
+      function validCalculation() {
+        let d = request.resource.data;
+        return d.keys().hasAll([
+            'expression', 'method', 'lower', 'upper',
+            'tolerance', 'maxIterations', 'root',
+            'functionValue', 'iterations', 'status',
+            'message', 'rows', 'createdAt'
+          ])
+          && d.keys().hasOnly([
+            'expression', 'method', 'lower', 'upper',
+            'tolerance', 'maxIterations', 'root',
+            'functionValue', 'iterations', 'status',
+            'message', 'rows', 'createdAt'
+          ])
+          && d.expression is string
+          && d.expression.size() > 0
+          && d.expression.size() <= 200
+          && d.method in ['Bisection', 'False Position']
+          && d.lower is number
+          && d.upper is number
+          && d.lower < d.upper
+          && d.tolerance is number
+          && d.tolerance > 0
+          && d.maxIterations is int
+          && d.maxIterations >= 1
+          && d.maxIterations <= 500
+          && d.root is number
+          && d.root >= d.lower
+          && d.root <= d.upper
+          && d.functionValue is number
+          && d.iterations is int
+          && d.iterations >= 0
+          && d.iterations <= d.maxIterations
+          && d.status in [
+            'converged', 'max_iterations', 'stagnated'
+          ]
+          && d.message is string
+          && d.message.size() <= 300
+          && d.rows is list
+          && d.rows.size() == d.iterations
+          && d.createdAt == request.time;
+      }
+
+      allow read: if isOwner();
+      allow create: if isOwner() && validCalculation();
+      allow update, delete: if false;
+    }
+  }
+}
