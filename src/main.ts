@@ -1,3 +1,4 @@
+import { RootGraph } from "./ui/RootGraph";
 import "./style.css";
 import { Equation } from "./domain/Equation";
 import { SolverConfig } from "./domain/SolverConfig";
@@ -79,6 +80,7 @@ app.innerHTML = `
       <h2>✦ Your result</h2>
       <p id="result-message"></p>
       <div id="result-summary" class="summary"></div>
+      <div id="root-graph" class="root-graph"></div>
       <div class="table-wrap">
         <table>
           <caption>Iteration table</caption>
@@ -107,6 +109,8 @@ function element<T extends HTMLElement>(id: string): T {
   return found as T;
 }
 
+const rootGraph = new RootGraph(element("root-graph"));
+
 function input(id: string): HTMLInputElement {
   return element<HTMLInputElement>(id);
 }
@@ -130,6 +134,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-example]")
       input("lower").value = example.lower;
       input("upper").value = example.upper;
       element("result").hidden = true;
+      rootGraph.clear();
       currentCalculation = null;
     });
   });
@@ -137,6 +142,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-example]")
 element<HTMLFormElement>("calculator-form")
   .addEventListener("submit", (event) => {
     event.preventDefault();
+    rootGraph.clear();
     currentCalculation = null;
 
     const resultPanel = element("result");
@@ -165,6 +171,7 @@ element<HTMLFormElement>("calculator-form")
 
       const result = solver.solve();
       currentCalculation = { result, config };
+      rootGraph.show(result, config);
 
       const statusLabels = {
         converged: "Tolerance reached",

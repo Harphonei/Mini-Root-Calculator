@@ -215,3 +215,10 @@ button:disabled {
   margin-top: 24px;
   padding-top: 16px;
 }
+.root-graph { margin: 24px 0; border-top: 2px dashed #cbb2e0; padding-top: 12px; }
+.root-graph svg { display: block; width: 100%; height: auto; background: #fffaff; border: 2px solid #cbb2e0; }
+.graph-controls { display: flex; align-items: center; gap: 12px; }
+.graph-controls input { min-width: 0; flex: 1; accent-color: #ca3d8c; }
+.graph-controls button { white-space: nowrap; }
+@media (max-width: 450px) { .graph-controls { flex-wrap: wrap; } .graph-controls input { order: 3; flex-basis: 100%; } }
+
