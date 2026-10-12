@@ -58,3 +58,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 `
 
 setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+
+import { runSolverChecks } from "./domain/solverChecks";
+
+const checkOutput = document.createElement("pre");
+checkOutput.textContent = runSolverChecks().join("\n");
+document.body.appendChild(checkOutput);
