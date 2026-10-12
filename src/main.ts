@@ -4,6 +4,12 @@ import { SolverConfig } from "./domain/SolverConfig";
 import { BisectionSolver } from "./domain/BisectionSolver";
 import { FalsePositionSolver } from "./domain/FalsePositionSolver";
 import type { RootSolver } from "./domain/RootSolver";
+import { auth, db } from "./data/firebase";
+import { HistoryRepository } from "./data/HistoryRepository";
+import { HistoryPanel } from "./ui/HistoryPanel";
+import type { CurrentCalculation } from "./ui/HistoryPanel";
+
+let currentCalculation: CurrentCalculation | null = null;
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("App container not found.");
@@ -124,12 +130,14 @@ document.querySelectorAll<HTMLButtonElement>("[data-example]")
       input("lower").value = example.lower;
       input("upper").value = example.upper;
       element("result").hidden = true;
+      currentCalculation = null;
     });
   });
 
 element<HTMLFormElement>("calculator-form")
   .addEventListener("submit", (event) => {
     event.preventDefault();
+    currentCalculation = null;
 
     const resultPanel = element("result");
     const message = element("result-message");
@@ -156,6 +164,7 @@ element<HTMLFormElement>("calculator-form")
         : new FalsePositionSolver(equation, config);
 
       const result = solver.solve();
+      currentCalculation = { result, config };
 
       const statusLabels = {
         converged: "Tolerance reached",
@@ -217,3 +226,14 @@ element<HTMLFormElement>("calculator-form")
         : "Calculation failed.";
     }
   });
+  const calculator = document.querySelector<HTMLElement>(".calculator");
+  if (!calculator) throw new Error("Calculator container not found.");
+
+  const historyRepository = new HistoryRepository(auth, db);
+
+  const historyPanel = new HistoryPanel(
+     historyRepository,
+     () => currentCalculation
+);
+
+historyPanel.mount(calculator);

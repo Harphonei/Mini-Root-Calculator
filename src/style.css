@@ -185,3 +185,33 @@ footer { text-align: center; font-size: 13px; margin-top: 36px; }
   .panel { padding: 20px; }
   .field-grid, .summary { grid-template-columns: 1fr; }
 }
+
+.history-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.history-item {
+  width: 100%;
+  text-align: left;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.history-summary {
+  white-space: pre-line;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+[data-details]:not(:empty) {
+  border-top: 2px dashed #cbb2e0;
+  margin-top: 24px;
+  padding-top: 16px;
+}
