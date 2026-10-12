@@ -1,7 +1,6 @@
 # Mini Root Calculator
 
-เว็บไซต์คำนวณรากของสมการสำหรับวิชา Object-Oriented Programming
-ออกแบบในธีมพิกเซลสีม่วง–ชมพู
+เว็บไซต์คำนวณรากของสมการ
 
 เว็บไซต์: https://mini-root-calcuator.web.app
 Source Code: https://github.com/Harphonei/Mini-Root-Calculator
