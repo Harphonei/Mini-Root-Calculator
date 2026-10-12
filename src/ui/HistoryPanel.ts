@@ -15,17 +15,13 @@ export class HistoryPanel {
   private readonly message: HTMLParagraphElement;
   private readonly list: HTMLDivElement;
   private readonly details: HTMLDivElement;
-  private readonly saveButton: HTMLButtonElement;
-  private readonly refreshButton: HTMLButtonElement;
-  private readonly saved = new WeakSet<SolverResult>();
+  private readonly saved = new Map<SolverResult, string>();
+  private busy = false;
 
-  constructor(
-    repository: HistoryRepository,
-    getCurrent: () => CurrentCalculation | null
-  ) {
+  constructor(repository: HistoryRepository,
+    getCurrent: () => CurrentCalculation | null) {
     this.repository = repository;
     this.getCurrent = getCurrent;
-
     this.panel = document.createElement("section");
     this.panel.className = "panel";
     this.panel.innerHTML = `
@@ -33,114 +29,156 @@ export class HistoryPanel {
       <div class="examples">
         <button type="button" data-save>Save current result ♡</button>
         <button type="button" data-refresh>Refresh history</button>
+        <button type="button" data-clear class="danger-button">Clear all history</button>
       </div>
-      <p class="hint">
-        Your latest 20 saved calculations.
+      <p class="hint">Your latest 20 saved calculations.
+        Clear all deletes ALL your saved history, including older records.
+        Deletion is permanent.
         History belongs to this browser's anonymous account.
-        Clearing browser data may remove access to it.
-      </p>
+        Clearing browser data may remove access to it.</p>
       <p data-message role="status"></p>
       <div data-list class="history-list"></div>
       <div data-details></div>
     `;
-
-    this.message = this.find<HTMLParagraphElement>("[data-message]");
-    this.list = this.find<HTMLDivElement>("[data-list]");
-    this.details = this.find<HTMLDivElement>("[data-details]");
-    this.saveButton = this.find<HTMLButtonElement>("[data-save]");
-    this.refreshButton = this.find<HTMLButtonElement>("[data-refresh]");
-
-    this.saveButton.addEventListener("click", () => {
-      void this.saveCurrent();
-    });
-
-    this.refreshButton.addEventListener("click", () => {
-      void this.refresh();
-    });
+    this.message = this.find("[data-message]");
+    this.list = this.find("[data-list]");
+    this.details = this.find("[data-details]");
+    this.find("[data-save]").addEventListener("click", () => void this.saveCurrent());
+    this.find("[data-refresh]").addEventListener("click", () => void this.refresh());
+    this.find("[data-clear]").addEventListener("click", () => void this.clearAll());
   }
 
   mount(container: HTMLElement): void {
-    const footer = container.querySelector("footer");
-    container.insertBefore(this.panel, footer);
+    container.insertBefore(this.panel, container.querySelector("footer"));
     void this.refresh();
   }
 
   private find<T extends HTMLElement>(selector: string): T {
     const found = this.panel.querySelector<T>(selector);
-    if (!found) throw new Error(`Missing history element: ${selector}`);
+    if (!found) throw new Error("Missing history element: " + selector);
     return found;
+  }
+
+  private setBusy(busy: boolean): void {
+    this.busy = busy;
+    this.panel.setAttribute("aria-busy", String(busy));
+    this.panel.querySelectorAll<HTMLButtonElement>("button")
+      .forEach(button => { button.disabled = busy; });
   }
 
   private errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
   }
 
-  private async saveCurrent(): Promise<void> {
-    const current = this.getCurrent();
-
-    if (!current) {
-      this.message.textContent = "Calculate a result first.";
-      return;
+  private async loadEntries(): Promise<void> {
+    const entries = await this.repository.getLatest();
+    this.list.replaceChildren();
+    this.details.replaceChildren();
+    if (entries.length === 0) this.list.textContent = "No saved calculations yet.";
+    for (const entry of entries) {
+      const row = document.createElement("div");
+      row.className = "history-row";
+      const open = document.createElement("button");
+      open.type = "button";
+      open.className = "history-item";
+      const date = entry.createdAt
+        ? entry.createdAt.toDate().toLocaleString() : "Time unavailable";
+      open.textContent = entry.expression + " · " + entry.method + " · " + date;
+      open.addEventListener("click", () => this.showDetails(entry));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "danger-button";
+      remove.textContent = "Delete";
+      remove.setAttribute("aria-label", "Delete " + entry.expression + " " + date);
+      remove.addEventListener("click", () => void this.deleteOne(entry));
+      row.append(open, remove);
+      this.list.append(row);
     }
-
-    if (this.saved.has(current.result)) {
-      this.message.textContent = "This result is already saved.";
-      return;
-    }
-
-    this.saveButton.disabled = true;
-    this.message.textContent = "Saving...";
-
-    try {
-      await this.repository.save(current.result, current.config);
-      this.saved.add(current.result);
-    } catch (error) {
-      this.message.textContent =
-        `Could not save. Try again. ${this.errorMessage(error)}`;
-      this.saveButton.disabled = false;
-      return;
-    }
-
-    await this.refresh("Saved successfully ♡");
-    this.saveButton.disabled = false;
+    this.setBusy(this.busy);
   }
 
-  private async refresh(successMessage = "History loaded."): Promise<void> {
-    this.refreshButton.disabled = true;
-
+  private async refresh(): Promise<void> {
+    if (this.busy) return;
+    this.setBusy(true);
+    this.message.textContent = "Loading history...";
     try {
-      const entries = await this.repository.getLatest();
-      this.list.replaceChildren();
-
-      if (entries.length === 0) {
-        this.list.textContent = "No saved calculations yet.";
-      }
-
-      for (const entry of entries) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "history-item";
-
-        const date = entry.createdAt
-          ? entry.createdAt.toDate().toLocaleString()
-          : "Time unavailable";
-
-        button.textContent =
-          `${entry.expression} · ${entry.method} · ${date}`;
-
-        button.addEventListener("click", () => this.showDetails(entry));
-        this.list.appendChild(button);
-      }
-
-      this.message.textContent = successMessage;
+      await this.loadEntries();
+      this.message.textContent = "History loaded.";
     } catch (error) {
-      this.message.textContent =
-        `${successMessage === "Saved successfully ♡"
-          ? "Saved, but could not reload history."
-          : "Could not load history."} ${this.errorMessage(error)}`;
-    } finally {
-      this.refreshButton.disabled = false;
+      this.message.textContent = "Could not load history. " + this.errorMessage(error);
+    } finally { this.setBusy(false); }
+  }
+
+  private async saveCurrent(): Promise<void> {
+    if (this.busy) return;
+    const current = this.getCurrent();
+    if (!current) { this.message.textContent = "Calculate a result first."; return; }
+    if (this.saved.has(current.result)) {
+      this.message.textContent = "This result is already saved."; return;
     }
+    this.setBusy(true);
+    this.message.textContent = "Saving...";
+    let committed = false;
+    try {
+      const id = await this.repository.save(current.result, current.config);
+      this.saved.set(current.result, id);
+      committed = true;
+      await this.loadEntries();
+      this.message.textContent = "Saved successfully ♡";
+    } catch (error) {
+      this.message.textContent = (committed
+        ? "Saved, but could not reload history. "
+        : "Could not save. Try again. ") + this.errorMessage(error);
+    } finally { this.setBusy(false); }
+  }
+
+  private async deleteOne(entry: HistoryEntry): Promise<void> {
+    if (this.busy) return;
+    if (!window.confirm("Permanently delete this calculation?\n" +
+      entry.expression + " · " + entry.method + "\nThis cannot be undone.")) return;
+    this.setBusy(true);
+    this.message.textContent = "Deleting...";
+    let committed = false;
+    try {
+      await this.repository.deleteOne(entry.id);
+      committed = true;
+      for (const [result, id] of this.saved) {
+        if (id === entry.id) this.saved.delete(result);
+      }
+      this.details.replaceChildren();
+      await this.loadEntries();
+      this.message.textContent = "Calculation deleted.";
+    } catch (error) {
+      this.message.textContent = (committed
+        ? "Deleted, but could not reload history. "
+        : "Could not delete. ") + this.errorMessage(error);
+    } finally { this.setBusy(false); }
+  }
+
+  private async clearAll(): Promise<void> {
+    if (this.busy) return;
+    if (!window.confirm("Permanently delete ALL your calculation history?\n" +
+      "This includes older records beyond the latest 20.\nThis cannot be undone.")) return;
+    this.setBusy(true);
+    this.message.textContent = "Clearing history...";
+    let committed = false;
+    try {
+      const count = await this.repository.clearAll(deleted => {
+        this.message.textContent = "Clearing history... deleted " + deleted + " records.";
+      });
+      committed = true;
+      this.saved.clear();
+      this.details.replaceChildren();
+      await this.loadEntries();
+      this.message.textContent = "History cleared. Deleted " + count + " records.";
+    } catch (error) {
+      this.saved.clear();
+      this.details.replaceChildren();
+      try { await this.loadEntries(); } catch { /* Keep the original error. */ }
+      this.message.textContent = (committed
+        ? "History cleared, but could not reload. "
+        : "") + this.errorMessage(error);
+    } finally { this.setBusy(false); }
   }
 
   private showDetails(entry: HistoryEntry): void {

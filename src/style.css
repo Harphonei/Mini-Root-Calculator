@@ -222,3 +222,10 @@ button:disabled {
 .graph-controls button { white-space: nowrap; }
 @media (max-width: 450px) { .graph-controls { flex-wrap: wrap; } .graph-controls input { order: 3; flex-basis: 100%; } }
 
+
+.history-row { display: flex; align-items: stretch; gap: 12px; }
+.history-row .history-item { flex: 1; min-width: 0; }
+.danger-button { background: #ffe2ec; color: #8d2452; }
+.danger-button:hover { background: #ffcddd; }
+@media (max-width: 450px) { .history-row { flex-direction: column; } }
+

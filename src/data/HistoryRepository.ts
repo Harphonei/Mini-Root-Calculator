@@ -4,6 +4,10 @@ import {
   addDoc,
   collection,
   getDocs,
+  getDocsFromServer,
+  deleteDoc,
+  doc,
+  writeBatch,
   limit,
   orderBy,
   query,
@@ -79,6 +83,33 @@ export class HistoryRepository {
     });
 
     return saved.id;
+  }
+
+  async deleteOne(id: string): Promise<void> {
+    if (!id || id.includes("/")) throw new Error("Invalid history ID.");
+    const userId = await this.getUserId();
+    await deleteDoc(doc(this.db, "users", userId, "calculations", id));
+  }
+
+  async clearAll(onProgress?: (count: number) => void): Promise<number> {
+    const userId = await this.getUserId();
+    const historyCollection = collection(this.db, "users", userId, "calculations");
+    let deleted = 0;
+    try {
+      while (true) {
+        const snapshot = await getDocsFromServer(query(historyCollection, limit(200)));
+        if (snapshot.empty) return deleted;
+        const batch = writeBatch(this.db);
+        for (const item of snapshot.docs) batch.delete(item.ref);
+        await batch.commit();
+        deleted += snapshot.size;
+        onProgress?.(deleted);
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error("Clearing stopped. Confirmed deleted: " + deleted +
+        ". Remaining records may still exist. Refresh and retry. " + detail);
+    }
   }
 
   async getLatest(): Promise<HistoryEntry[]> {
